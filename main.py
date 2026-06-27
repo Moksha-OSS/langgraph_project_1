@@ -1,4 +1,4 @@
-from typing import TypedDict
+from typing import TypedDict,Literal
 from langgraph.graph import StateGraph, START,END
 from langchain_core.messages import SystemMessage,HumanMessage
 from langchain_google_genai import ChatGoogleGenerativeAI
@@ -19,6 +19,8 @@ class State(TypedDict):
     chargable_weight:int
 
     total_cost:int
+
+    status:Literal["NEEDS REVIEW","APPROVED"]
 
 class ingestion_class(BaseModel):
     pieces:int = Field(
@@ -84,10 +86,13 @@ def calculator(state:State):
 
 def manager(state:State):
     print("Agent 3 is reviewing the final quote...")
-    print("-------------------------------------------------")
-    print(f"FINAL QUOTE READY: {state['airlines']}")
-    print(f"Total Cost: ${state['total_cost']}")
-    print("-------------------------------------------------")
+    if state["total_cost"]>=3500 or state["fuel_fees"] == 0:
+        return {
+            "status":"NEEDS REVIEW"
+        }
+    return {
+        "status":"APPROVED"
+    }
 
 graph_builder = StateGraph(State)
 graph_builder.add_node("ingestion",ingestion)
@@ -102,9 +107,12 @@ graph = graph_builder.compile()
 
 if __name__ == "__main__":
     initial_state = {
-        "mail":"""Hey, we can secure space for your 3 pallets. Each pallet is 120cm long, 80cm wide, and 160cm high. The total actual weight of the shipment is 500kg. Our rate is $4 per kg with a $200 fuel fee."""
+        "mail":"""Hey, we can secure space for your 3 pallets. Each pallet is 120cm long, 80cm wide, and 160cm high. The total actual weight of the shipment is 500kg. Our rate is $4 per kg."""
     }
 
     response = graph.invoke(initial_state)
 
+    status = response["status"]
+
+    print(f"Status of the message: {status}")
     print(f"Result of graph execution\n{response}")
