@@ -6,16 +6,39 @@ from pydantic import BaseModel,Field
 
 class State(TypedDict):
     mail:str
-    total_weight:int
     airlines:str
     rate_per_kg:int
     fuel_fees:int
 
+    pieces:int
+    length_cm:int
+    width_cm:int
+    height_cm:int
+    
+    actual_weight_kg:int
+    chargable_weight:int
+
     total_cost:int
 
 class ingestion_class(BaseModel):
-    total_weight:int = Field(
-        description="from the mail find out the total weight of the shipment"
+    pieces:int = Field(
+        description="how many pieces are being shipped"
+    )
+
+    length_cm:int = Field(
+        description="what is the length of the shipment in centimeters"
+    )
+
+    width_cm:int = Field(
+        description="what is the width of the shipment in centimeters"
+    )
+
+    height_cm:int = Field(
+        description="what is the height of the shipment in centimeters"
+    )
+
+    actual_weight_kg:int = Field(
+        description="what is the actual weight of the shipment in kg"
     )
 
     airlines:str = Field(
@@ -38,17 +61,24 @@ def ingestion(state:State):
     response = llm_with_structured_output.invoke(message_for_ai)
     print("Extracting fake data...\nData extracted!")
     return {
-        "total_weight":response.total_weight,
         "airlines":response.airlines,
         "rate_per_kg":response.rate_per_kg,
-        "fuel_fees":response.fuel_fees
+        "fuel_fees":response.fuel_fees,
+        "pieces":response.pieces,
+        "length_cm":response.length_cm,
+        "width_cm":response.width_cm,
+        "height_cm":response.height_cm,
+        "actual_weight_kg":response.actual_weight_kg
     }
 
 def calculator(state:State):
     print("Calculating total cost...")
-    total_cost = (state["total_weight"] * state["rate_per_kg"]) + state["fuel_fees"]
+    dimensional_weight = ((state["length_cm"]*state["width_cm"]*state["height_cm"])/6000)*state["pieces"]
+    chargable_weight = max(dimensional_weight,state["actual_weight_kg"])
+    total_cost = (chargable_weight*state["rate_per_kg"]) + state["fuel_fees"]
     print("Cost Calculated!!")
     return {
+        "chargable_weight":chargable_weight,
         "total_cost":total_cost
     }
 
@@ -72,18 +102,7 @@ graph = graph_builder.compile()
 
 if __name__ == "__main__":
     initial_state = {
-        "mail":"""Subject: RE: Quote Request - Pallets to DXB
-
-Hi team, 
-
-Thanks for reaching out. We can secure space for your shipment on Lufthansa. 
-
-Based on the dimensions provided, the total weight of your cargo is confirmed at 800 kg. Our standard transportation rate for this lane is $4 per kg. Please note that due to current market conditions, there is also a flat fuel fee of $200 applied to all shipments. 
-
-Let me know if you want to lock this in before Friday. 
-
-Best,
-Dave"""
+        "mail":"""Hey, we can secure space for your 3 pallets. Each pallet is 120cm long, 80cm wide, and 160cm high. The total actual weight of the shipment is 500kg. Our rate is $4 per kg with a $200 fuel fee."""
     }
 
     response = graph.invoke(initial_state)
